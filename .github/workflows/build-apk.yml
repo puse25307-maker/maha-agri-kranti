@@ -13,30 +13,32 @@ jobs:
 
       - name: Extract AI Studio project
         run: |
-          mkdir project
+          mkdir -p project
           unzip -q *.zip -d project
+
+      - name: Find project directory
+        run: |
+          PROJECT_DIR=$(dirname "$(find project -name package.json -print -quit)")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project directory: $PROJECT_DIR"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: project/package-lock.json
+          node-version: 22
 
       - name: Install dependencies
-        working-directory: project
+        working-directory: ${{ env.PROJECT_DIR }}
         run: npm install
 
-      - name: Build web app
-        working-directory: project
-        run: npm run build
-
       - name: Install Capacitor
-        working-directory: project
-        run: npm install @capacitor/core @capacitor/android
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          npm install @capacitor/core @capacitor/android
+          npm install -D @capacitor/cli
 
       - name: Create Capacitor configuration
-        working-directory: project
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           cat > capacitor.config.ts <<'EOF'
           import type { CapacitorConfig } from '@capacitor/cli';
@@ -50,16 +52,16 @@ jobs:
           export default config;
           EOF
 
-      - name: Install Capacitor CLI
-        working-directory: project
-        run: npm install -D @capacitor/cli
+      - name: Build web app
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm run build
 
       - name: Add Android platform
-        working-directory: project
+        working-directory: ${{ env.PROJECT_DIR }}
         run: npx cap add android
 
       - name: Copy web app into Android project
-        working-directory: project
+        working-directory: ${{ env.PROJECT_DIR }}
         run: npx cap copy android
 
       - name: Setup Java
@@ -68,12 +70,14 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Build APK
-        working-directory: project/android
-        run: ./gradlew assembleDebug
+      - name: Build Android APK
+        working-directory: ${{ env.PROJECT_DIR }}/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Maha-Agri-Kranti-APK
-          path: project/android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
